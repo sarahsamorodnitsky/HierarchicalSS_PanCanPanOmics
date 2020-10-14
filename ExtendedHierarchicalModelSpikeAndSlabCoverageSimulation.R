@@ -2,9 +2,10 @@
 #   by generating data using "true parameter values" and checking if the model-derived credible intervals 
 #   cover the true values ~ 95% of the time. 
 # This is a coverage simulation for the spike-and-slab model. 
-# Author: Sarah Samorodnitsky 
+# Author: Sarah Samorodnitsky and Eric Lock (2020)
+# University of Minnesota
 
-source("/Users/sarahsamorodnitsky/Documents/PanCancerOmics/PanTCGASurvivalModeling/ExtendedHierarchicalModelNormalSpikeAndSlab.R")
+source("ExtendedHierarchicalModelNormalSpikeAndSlab.R")
 
 SimulateCoverage = function(nsim, giter) {
   # Simulate the coverage of the Gibbs sampler model. 

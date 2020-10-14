@@ -1,10 +1,12 @@
-### Testing the selection accuracy of spike-and-slab self-written model. This means 
-### I am checking how well the self-written sampler correctly identifies which covariates
+### Purpose: Testing the selection accuracy of spike-and-slab self-written model. This means 
+### Checking how well the self-written sampler correctly identifies which covariates
 ### should be in the model for each cancer type and which should not be. 
+# Author: Sarah Samorodnitsky and Eric Lock (2020)
+# University of Minnesota
 
 library(MASS)
 
-source("/Users/sarahsamorodnitsky/Documents/PanCancerOmics/PanTCGASurvivalModeling/ExtendedHierarchicalModelNormalSpikeAndSlab.R")
+source("ExtendedHierarchicalModelNormalSpikeAndSlab.R")
 
 SimulateSelectionAccuracy = function(nsim, giter) {
   # Simulate the accuracy of my self-written model by selecting variables that are relevant 
