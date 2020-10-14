@@ -199,7 +199,7 @@ all(surv_time_matches)
 all(age_matches)
 all(no_na_age)
 
-### Checking that the data looks proper:
+### Now doing an explicit check that the data looks proper:
 
 # 1. Checking that the dimensions of the data match 
 dim_match = c()
