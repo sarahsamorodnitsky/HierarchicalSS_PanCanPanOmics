@@ -1,8 +1,8 @@
 ### Script with helper functions to import each time they are used elsewhere 
 ### to eliminate the problem of updating a function in one script but not in
 ### another.
-### Author: Sarah Samorodnitsky
-### Date: 12/9/19
+### Authors: Sarah Samorodnitsky and Eric Lock (2020)
+### University of Minnesota
 
 load("XYC_V2_WithAge_StandardizedPredictors.rda") # loads the new factorization data with all PCS and age standardized
 
