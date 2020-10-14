@@ -4,7 +4,7 @@
 ### Author: Sarah Samorodnitsky
 ### Date: 12/9/19
 
-load("~/PanTCGA/SpikeAndSlabResults/SpikeAndSlabGibbsSampler/ModelWithInterceptOutsideSS/ResultsAfterFiltering_V3/XYC_V2_WithAge_StandardizedPredictors.rda") # loads the new factorization data with all PCS and age standardized
+load("XYC_V2_WithAge_StandardizedPredictors.rda") # loads the new factorization data with all PCS and age standardized
 
 # Useful variables
 cancer_types = names(Covariates) # should be 29 cancer types
