@@ -200,3 +200,4 @@ end-start
 # Computing the results
 PL.Matrix = do.call(rbind, PL)
 PL.Means = colMeans(PL.Matrix)
+
