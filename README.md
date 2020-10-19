@@ -22,7 +22,7 @@ to
 age.centered.i = X_i[, "0.5"]
 ```
 
-because the clinical data has the original age values, not the standardized version. 
+because the clinical data has the original age values, not the standardized version. Save this version of the data in a file called `XYC_V2_WithAge.rda` to match our naming in `CheckingDataMatchingResults.R`.
 
 The last two scripts (and most of the later ones) source `HelperFunctions.R` which contains helper functions used throughout project and analysis.
 
