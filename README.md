@@ -2,7 +2,11 @@
 
 This is the repository for code used for the project titled "A Hierarchical Spike-and-Slab Model for Pan-Cancer Survival Using Pan-Omic Data." The purpose of this project was to develop methodology for prediction using multiple sources of data and multiple sample sets. We used results of a method for bidimensional integration of multi-source, multi-way data called BIDIFAC+ by Lock et al. (https://arxiv.org/abs/2002.02601) to predict overall patient survival from the Cancer Genome Atlas database. Our predictive model is a Bayesian hierarchical model with hierarchical spike-and-slab predictors that allow for the borrowing of information across sample sets when determining the sparsity structure of the data. This repository also provides simulation results for this hierarchical model under different data-generating conditions. 
 
-The code in this repository is as follows:
+The following are instructions on how to reproduce our results. 
+
+## Reading in and processing the data
+
+`load_modules.R` contains code for loading in the BIDIFAC+ modules and computing their SVDs. Download `pan.fac.results_v2.rda` and edit all `load()` and `save()` commands to your directory. This script will save a file called `mod.pcs.v3.rda` which contains the selected features from the BIDIFAC+ results. These features are in a variable named `mod.pcs`.
 
 (1) load_modules.R: Loads in BIDIFAC+ modules. Computes SVD of each module and saves scores according to filtering approach. 
 
