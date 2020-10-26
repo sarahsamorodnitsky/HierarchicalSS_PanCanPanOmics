@@ -6,11 +6,11 @@ The following are instructions on how to reproduce our results.
 
 ## Reading in and processing the data
 
-`load_modules.R` contains code for loading in the BIDIFAC+ modules and computing their SVDs. The scores that we selected based on our filtering criteria will be saved at the end. Download `pan.fac.results_v2.rda` and edit all `load()` and `save()` commands to your directory. This script will save a file called `mod.pcs.v3.rda` which contains the selected features from the BIDIFAC+ results. These features are in a variable named `mod.pcs`.
+`load_modules.R` contains code for loading in the BIDIFAC+ modules and computing their SVDs. The scores that we selected based on our filtering criteria will be saved at the end. This script will save a file called `mod.pcs.v3.rda` which contains the selected features from the BIDIFAC+ results. These features are in a variable named `mod.pcs`. We do not provide the data in this repository simply because of its size - please email me if you'd like me to send you the data through another route. 
 
 `MatchingClinicalAndFactorizationData.R` matches the features of the BIDIFAC+ module SVDs to TCGA clinical data. You will have to change all `load()` statements to reflect your directory. In the end, this script will save a file called `XYC_V2_WithAge_StandardizedPredictors.rda` which contains the features, the survival data, and the censored data for all the subjects. 
 
-`CheckingDataMatchingResults.R` checks proper matching of subjects from modules to TCGA clinical data. This ensures data is of proper form (no missing, positive survival times, etc). This script begins by deconstructing the matching function from the previous script and then performs an explicit checker to ensure the data matches properly. In order to properly check that the age column matches, you will have to change the following line out of the `MatchingClinicalAndFactorizationData.R`script from:
+`CheckingDataMatchingResults.R` checks proper matching of subjects from modules to TCGA clinical data. This ensures data is of proper form (no missing, positive survival times, etc). This script begins by deconstructing the matching function from the previous script and then performs an explicit checker to ensure the data matches properly. In order to properly check that the age column matches, we manually change the following line out of the `MatchingClinicalAndFactorizationData.R`script from:
 
 ```
 age.centered.i = (X_i[, "0.5"] - mean(X_i[, "0.5"]))/sd(X_i[, "0.5"]
@@ -22,7 +22,7 @@ to
 age.centered.i = X_i[, "0.5"]
 ```
 
-because the clinical data has the original age values, not the standardized version. Save this version of the data in a file called `XYC_V2_WithAge.rda` to match our naming in `CheckingDataMatchingResults.R`.
+because the clinical data has the original age values, not the standardized version. We saved this version of the data in a file called `XYC_V2_WithAge.rda` to match our naming in `CheckingDataMatchingResults.R`. Both `XYC_V2_WithAge.rda` and `XYC_V2_WithAge_StandardizedPredictors.rda` in this repository; `XYC_V2_WithAge.rda` is only used for checking the data was cleaned properly and will not be used for the rest of the analysis. 
 
 The last two scripts (and most of the later ones) source `HelperFunctions.R` which contains helper functions used throughout project and analysis.
 
