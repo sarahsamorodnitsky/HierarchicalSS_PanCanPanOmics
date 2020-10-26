@@ -6,7 +6,7 @@ The following are instructions on how to reproduce our results.
 
 ## Reading in and processing the data
 
-`load_modules.R` contains code for loading in the BIDIFAC+ modules and computing their SVDs. The scores that we selected based on our filtering criteria will be saved at the end. This script will save a file called `mod.pcs.v3.rda` which contains the selected features from the BIDIFAC+ results. These features are in a variable named `mod.pcs`. We do not provide the data in this repository simply because of its size - please email me if you'd like me to send you the data through another route. 
+`load_modules.R` contains code for loading in the BIDIFAC+ modules and computing their SVDs. The scores that we selected based on our filtering criteria will be saved at the end. This script will save a file called `mod.pcs.v3.rda` which contains the selected features from the BIDIFAC+ results. These features are in a variable named `mod.pcs`. 
 
 `MatchingClinicalAndFactorizationData.R` matches the features of the BIDIFAC+ module SVDs to TCGA clinical data. You will have to change all `load()` statements to reflect your directory. In the end, this script will save a file called `XYC_V2_WithAge_StandardizedPredictors.rda` which contains the features, the survival data, and the censored data for all the subjects. 
 
@@ -22,7 +22,9 @@ to
 age.centered.i = X_i[, "0.5"]
 ```
 
-because the clinical data has the original age values, not the standardized version. We saved this version of the data in a file called `XYC_V2_WithAge.rda` to match our naming in `CheckingDataMatchingResults.R`. Both `XYC_V2_WithAge.rda` and `XYC_V2_WithAge_StandardizedPredictors.rda` in this repository; `XYC_V2_WithAge.rda` is only used for checking the data was cleaned properly and will not be used for the rest of the analysis. 
+because the clinical data has the original age values, not the standardized version. We saved this version of the data in a file called `XYC_V2_WithAge.rda` to match our naming in `CheckingDataMatchingResults.R`. `XYC_V2_WithAge.rda` is only used for checking the data was cleaned properly and will not be used for the rest of the analysis. 
+
+We do not provide the data to run these last three scripts because it is too big to store locally. Please email me if you'd like the data we used and it can be sent through another avenue. We save both `XYC_V2_WithAge.rda` and `XYC_V2_WithAge_StandardizedPredictors.rda` to this repository so you can begin your analysis here. 
 
 The last two scripts (and most of the later ones) source `HelperFunctions.R` which contains helper functions used throughout project and analysis.
 
