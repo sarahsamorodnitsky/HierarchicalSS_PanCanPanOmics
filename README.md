@@ -36,7 +36,7 @@ The coverage simulation can be found in `ExtendedHierarchicalModelSpikeAndSlabCo
 
 ## TCGA data application
 
-`ModelComparison.R` compares 5 different possible models for best fit on TCGA data. We conclude the hierarchical spike-and-slab model we propose fits the data best so we apply it to the TCGA data in `GibbsSamplingResults_NewFactorizationDataFilterV3_WithAge_StandardizedPredictors.R`. This script runs the Gibbs sampling algorithm on the TCGA data for the log-normal model. Results are saved for further analysis. This script also creates inclusion heatmap we include in our article.
+`ModelComparison.R` compares 5 different possible models for best fit on TCGA data. We conclude the hierarchical spike-and-slab model we propose fits the data best so we apply it to the TCGA data in `GibbsSamplingResults_NewFactorizationDataFilterV3_WithAge_StandardizedPredictors.R`. This script runs the Gibbs sampling algorithm on the TCGA data for the log-normal model. Results are saved for further analysis. This script also creates inclusion heatmap we include in our article. `ScoresVsSubtypes.R` contains code to create all additional figures in the article. 
 
 ## Model simulations
 
