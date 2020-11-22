@@ -116,7 +116,7 @@ SimulateCoverage = function(nsim, giter) {
   n_cancer = length(covariates_by_cancer) # number of cancer types
   n_betas = length(covariates_in_model) 
   p = n_betas
-  n_vec = sample(20:500, size = n_cancer) # sample size for each of 3 cancer types, randomly generated.
+  n_vec = sample(50:500, size = n_cancer) # sample size for each of 3 cancer types, randomly generated.
   n_params = length(unlist(covariates_by_cancer)) + 3*length(covariates_in_model) + 1 # total number of parameters, for iterating through intervals (4 beta_tildes, 4 lambdas, 1 sigma^2, and all the betas)
   Coverage = rep(0, n_params) # initialize vector to store coverage proportion for each parameter
   

@@ -72,7 +72,7 @@ SimulateSelectionAccuracy = function(nsim, giter) {
   covariates_by_cancer = list(c(1, 2, 4), c(1, 2, 3, 4), c(1, 3), c(1, 2, 3), c(1, 4), c(1, 2, 4),
                               c(1, 3), c(1, 2), c(1, 2, 3), c(1, 2, 3, 4), c(1, 2), c(1, 3)) 
   n_cancer = length(covariates_by_cancer) # number of cancer types
-  n_vec = sample(200:500, size = n_cancer) # sample size for each of 3 cancer types, randomly generated.
+  n_vec = sample(50:500, size = n_cancer) # sample size for each of 3 cancer types, randomly generated.
   
   # Useful values
   iters = giter
@@ -201,4 +201,5 @@ SimulateSelectionAccuracy = function(nsim, giter) {
   return(list(SelPerc = SelPerc, Differences = Differences))
 }
 
-testsel = SimulateSelectionAccuracy(nsim = 1000, giter = 5000)
+testsel = SimulateSelectionAccuracy(nsim = 1000, giter = 2000)
+save(testsel, file = "SelectionAccuracySimulationResults.rda")
