@@ -1,0 +1,4 @@
+# Code just to run checker simulations. 
+setwd("/Users/sarahsamorodnitsky/Documents/PanCancerOmics/HierarchicalSS_PanCanPanOmics/")
+source("/Users/sarahsamorodnitsky/Documents/PanCancerOmics/HierarchicalSS_PanCanPanOmics/ExtendedHierarchicalModelSpikeAndSlabCoverageSimulation.R")
+source("/Users/sarahsamorodnitsky/Documents/PanCancerOmics/HierarchicalSS_PanCanPanOmics/ExtendedHierarchicalModelSpikeAndSlabSelectingTrueParametersSimulation.R")
