@@ -40,5 +40,5 @@ The coverage simulation can be found in `ExtendedHierarchicalModelSpikeAndSlabCo
 
 ## Model simulations
 
-We run our model simulations to compare the performance of our model with four other Bayesian hierarchical frameworks in `ModelSimulations.R`. We compare these five models under six different data-generating scenarios to assess the performance and flexibility of each. This script sources `RunFiveModelTypes.R` which runs the five different possible models. 
+We run our model simulations to compare the performance of our model with four other Bayesian hierarchical frameworks in `ModelSimulations.R`. We compare these five models under six different data-generating scenarios to assess the performance and flexibility of each. This script sources `RunFiveModelTypes.R` which runs the five different possible models. At the end of the simulations script, pairwise t-tests are performed to compare the results from each model under each condition. 
 
