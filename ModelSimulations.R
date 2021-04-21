@@ -33,22 +33,21 @@
 # with 1000 iteration burn-in. Then, generate a test data set of the same size and using the results
 # from the training data set run, compute the log-posterior likelihood. Average across 10 replications. 
 
-# Authors: Sarah Samorodnitsky and Eric Lock (2020)
-# University of Minnesota
-
 library(foreach)
 library(doParallel)
 
-currentwd = "~/PanTCGA/SpikeAndSlabResults/SpikeAndSlabGibbsSampler/ModelWithInterceptOutsideSS/ResultsAfterFiltering_V3/ModelSimulations/" # Change this to your directory
+currentwd = "~/PanTCGA/SpikeAndSlabResults/SpikeAndSlabGibbsSampler/ModelWithInterceptOutsideSS/ResultsAfterFiltering_V3/ModelSimulations/"
+PanTCGAwd = "~/PanTCGA/"
+datawd = "~/PanTCGA/SpikeAndSlabResults/SpikeAndSlabGibbsSampler/ModelWithInterceptOutsideSS/ResultsAfterFiltering_V3/"
 
 # load in the Covariates, Survival, Censored data to generate fake data with the same structure
-load("XYC_V2_WithAge_StandardizedPredictors.rda")
+load(paste(datawd, "XYC_V2_WithAge_StandardizedPredictors.rda", sep = ""))
 
 # load in helper functions
-source("HelperFunctions.R")
+source(paste(PanTCGAwd, "HelperFunctions.R", sep = ""))
 
 # load in function that runs the model for each of the five types
-source("RunFiveModelTypes.R")
+source(paste(currentwd, "RunFiveModelTypes.R", sep = ""))
 
 
 # Important variables
@@ -87,7 +86,8 @@ writeLines(c(""), paste(currentwd, "ModelSimulationsLog", ".txt", sep = ""))
 start <- Sys.time()
 cl <- makeCluster(10)
 registerDoParallel(cl)
-FiveModelsFiveDatasetsTenReps = foreach(repli = 1:20, .packages = c("MASS", "truncnorm", "EnvStats")) %dopar% {
+# Changed from FiveModelsFiveDatasetsTenReps -> FiveModelsFiveDatasetsThirtyReps for 2nd revision. 
+FiveModelsFiveDatasetsThirtyReps = foreach(repli = 1:30, .packages = c("MASS", "truncnorm", "EnvStats")) %dopar% {
   set.seed(repli) # set a seed so for each replication the same data and true values are generated
   
   sink(paste(currentwd, "ModelSimulationsLog", ".txt", sep = ""), append=TRUE)
@@ -134,7 +134,7 @@ FiveModelsFiveDatasetsTenReps = foreach(repli = 1:20, .packages = c("MASS", "tru
   
   # Calculating the posterior likelihood using the test data
   PLs_C1 = ComputePosteriorLikelihoodForEveryModel(PosteriorsForEveryModel_C1, Design_C1_Test, Response_C1_Test,
-                                                   Censored_C1_Test, iters, burnin, model_types)
+                                          Censored_C1_Test, iters, burnin, model_types)
   
   cat(paste("model runs for condition 1 in parallel process", repli, "has finished at time", Sys.time(), "\n"))
   
@@ -367,42 +367,55 @@ end - start
 ### Combining the results from each replication  ###############################
 ################################################################################
 
+save(FiveModelsFiveDatasetsThirtyReps, file = paste(currentwd, "ModelSimulations30RepsResults_V2.rda", sep = ""))
 save(FiveModelsFiveDatasetsTenReps, file = paste(currentwd, "ModelSimulations20RepsResults_V2.rda", sep = ""))
 
-FiveModelsTenRepsSumOfSquaredDevs = sapply(FiveModelsFiveDatasetsTenReps, '[', 1)
-FiveModelsTenRepsPLs = sapply(FiveModelsFiveDatasetsTenReps, '[', 2)
+# Loading in the saved results for both 20 replicates and 30 replications. 
+# Going to combine them together to get 50 total replications. 
+load(paste(currentwd, "ModelSimulations30RepsResults_V2.rda", sep = ""))
+load(paste(currentwd, "ModelSimulations20RepsResults_V2.rda", sep = ""))
+
+# Combining the two sets of replications together
+FiveModels50Reps <- c(FiveModelsFiveDatasetsTenReps,
+                      FiveModelsFiveDatasetsThirtyReps)
+
+# Checking the length looks correct (should be 50). 
+length(FiveModels50Reps)
+
+# Selecting just the sums of squared deviations and the posterior likelihoods. 
+FiveModelsSumOfSquaredDevs = sapply(FiveModels50Reps, '[', 1)
+FiveModelsPLs = sapply(FiveModels50Reps, '[', 2)
 
 # Taking the mean of each list of matrices above
-FiveModelsTenRepsSumOfSquaredDevsMean = Reduce('+', FiveModelsTenRepsSumOfSquaredDevs)/length(FiveModelsTenRepsSumOfSquaredDevs)
-FiveModelsTenRepsPLsMean = Reduce('+', FiveModelsTenRepsPLs)/length(FiveModelsTenRepsPLs)
+FiveModelsSumOfSquaredDevsMean = Reduce('+', FiveModelsSumOfSquaredDevs)/length(FiveModelsSumOfSquaredDevs)
+FiveModelsPLsMean = Reduce('+', FiveModelsPLs)/length(FiveModelsPLs)
 
 # Doing pairwise t-tests between the results within each condition for each model
 # Storing the number of conditions and models
-load(paste(currentwd, "ModelSimulations20RepsResults_V2.rda", sep = ""))
+n_conditions = nrow(FiveModelsSumOfSquaredDevsMean)
+n_models = ncol(FiveModelsSumOfSquaredDevsMean)
 
-n_conditions = nrow(FiveModelsTenRepsSumOfSquaredDevsMean)
-n_models = ncol(FiveModelsTenRepsSumOfSquaredDevsMean)
-
-conditions = rownames(FiveModelsTenRepsSumOfSquaredDevsMean)
-models = colnames(FiveModelsTenRepsSumOfSquaredDevsMean)
+# Recall that the rows are the conditions and the column names are the model types
+conditions = rownames(FiveModelsSumOfSquaredDevsMean)
+models = colnames(FiveModelsSumOfSquaredDevsMean)
 
 # Initializing a list of matrices to contain p-values
 ListOfConditionsMatrixOfPValuesSumOfSquaredDevs = lapply(1:n_conditions, function(cond) list()) 
-names(ListOfConditionsMatrixOfPValuesSumOfSquaredDevs) = rownames(FiveModelsTenRepsSumOfSquaredDevsMean)
+names(ListOfConditionsMatrixOfPValuesSumOfSquaredDevs) = rownames(FiveModelsSumOfSquaredDevsMean)
 
 ListOfConditionsMatrixOfPValuesPLs = lapply(1:n_conditions, function(cond) list()) 
-names(ListOfConditionsMatrixOfPValuesPLs) = rownames(FiveModelsTenRepsPLsMean)
+names(ListOfConditionsMatrixOfPValuesPLs) = rownames(FiveModelsPLsMean)
 
 
 for (cond in 1:n_conditions) { # for each condition
   # Creating matrices to store the p-values in
   MatrixOfPValuesSSDForCond.i = matrix(nrow = n_models, ncol = n_models)
-  rownames(MatrixOfPValuesSSDForCond.i) = colnames(FiveModelsTenRepsSumOfSquaredDevsMean)
-  colnames(MatrixOfPValuesSSDForCond.i) = colnames(FiveModelsTenRepsSumOfSquaredDevsMean)
+  rownames(MatrixOfPValuesSSDForCond.i) = colnames(FiveModelsSumOfSquaredDevsMean)
+  colnames(MatrixOfPValuesSSDForCond.i) = colnames(FiveModelsSumOfSquaredDevsMean)
   
   MatrixOfPValuesPLsForCond.i = matrix(nrow = n_models, ncol = n_models)
-  rownames(MatrixOfPValuesPLsForCond.i) = colnames(FiveModelsTenRepsPLsMean)
-  colnames(MatrixOfPValuesPLsForCond.i) = colnames(FiveModelsTenRepsPLsMean)
+  rownames(MatrixOfPValuesPLsForCond.i) = colnames(FiveModelsPLsMean)
+  colnames(MatrixOfPValuesPLsForCond.i) = colnames(FiveModelsPLsMean)
   
   # Iterating through all pairs of models
   for (mod1 in 1:n_models) {
@@ -416,10 +429,10 @@ for (cond in 1:n_conditions) { # for each condition
           (cond == 5 & mod1 == 5 & mod2 == 5) | (cond == 6 & mod1 == 3 & mod2 == 3)) {
         
         MatrixOfPValuesSSDForCond.i[mod1, mod2] = 0
-        
+   
       } else {
-        t.test.results.ssd = t.test(sapply(FiveModelsTenRepsSumOfSquaredDevs, function(repl) repl[cond,mod1]), 
-                                    sapply(FiveModelsTenRepsSumOfSquaredDevs, function(repl) repl[cond,mod2]),
+        t.test.results.ssd = t.test(sapply(FiveModelsSumOfSquaredDevs, function(repl) repl[cond,mod1]), 
+                                    sapply(FiveModelsSumOfSquaredDevs, function(repl) repl[cond,mod2]),
                                     paired = TRUE)
         
         # Storing the results in their respective matrices
@@ -429,8 +442,8 @@ for (cond in 1:n_conditions) { # for each condition
       
       # Storing the results in their respective matrices
       # For posterior likelihoods
-      t.test.results.pls = t.test(sapply(FiveModelsTenRepsPLs, function(repl) repl[cond,mod1]), 
-                                  sapply(FiveModelsTenRepsPLs, function(repl) repl[cond,mod2]),
+      t.test.results.pls = t.test(sapply(FiveModelsPLs, function(repl) repl[cond,mod1]), 
+                                  sapply(FiveModelsPLs, function(repl) repl[cond,mod2]),
                                   paired = TRUE)
       
       # For posterior likelihood
@@ -450,20 +463,20 @@ for (cond in 1:n_conditions) { # for each condition
 library(xtable)
 
 # Adding more informative titles
-colnames(FiveModelsTenRepsSumOfSquaredDevsMean) = c("Hierarchical Spike & Slab",
+colnames(FiveModelsSumOfSquaredDevsMean) = c("Hierarchical Spike & Slab",
                                                     "Inclusion Probability Fixed at 0.5",
                                                     "Full Model",
                                                     "Shared Inclusion Probability for all Predictors",
                                                     "Null Model")
-rownames(FiveModelsTenRepsSumOfSquaredDevsMean) = c("All Included w.p. 0.5",
+rownames(FiveModelsSumOfSquaredDevsMean) = c("All Included w.p. 0.5",
                                                     "All Included w.p. 0.1",
                                                     "Indep. Inclusion w.p. 0.5",
                                                     "Indep. Inclusion w.p. 0.1",
                                                     "All Covariates Included",
                                                     "No Covariates Included")
-
-xtable(FiveModelsTenRepsSumOfSquaredDevsMean, digits = 4)
-xtable(FiveModelsTenRepsPLsMean)
+  
+xtable(FiveModelsSumOfSquaredDevsMean, digits = 4)
+xtable(FiveModelsPLsMean)
 
 # Checking certain p-values to see if they are significant
 round(ListOfConditionsMatrixOfPValuesSumOfSquaredDevs$Independent0.5, 3)
