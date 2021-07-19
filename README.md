@@ -26,7 +26,7 @@ because the clinical data has the original age values, not the standardized vers
 
 Again, we do not provide the data to run these last three scripts because it is too big to store locally. Please email me if you'd like the data we used and it can be sent through another avenue. We save both `XYC_V2_WithAge.rda` and `XYC_V2_WithAge_StandardizedPredictors.rda` to this repository so you can begin your analysis here. 
 
-The last two scripts and most of the later ones source `HelperFunctions.R` which contains helper functions used throughout project and analysis.
+The last two scripts and most of the later ones source `HelperFunctions_V2.R` which contains helper functions used throughout project and analysis.
 
 ## The Gibbs sampler 
 
@@ -36,7 +36,7 @@ The coverage simulation can be found in `ExtendedHierarchicalModelSpikeAndSlabCo
 
 ## TCGA data application
 
-`ModelComparison.R` compares eight different possible models for best fit on TCGA data. We conclude the hierarchical spike-and-slab model we propose fits the data best so we apply it to the TCGA data in `GibbsSamplingResults_NewFactorizationDataFilterV3_WithAge_StandardizedPredictors.R`. This script runs the Gibbs sampling algorithm on the TCGA data for the log-normal model. Results are saved for further analysis. This script also creates inclusion heatmap we include in our article. `ScoresVsSubtypes.R` contains code to create all additional figures in the article. To create these figures, we used data from the TCGA-CDR (Liu and others, 2018) found in `TCGA-CDR.csv`, data from an analysis by TCGA Research Network (2015) found in `LGGClinicalDataSubtypes.csv`, and data from the analysis done in Ricketts and others (2018) found in `mmc2.csv`. The links to these three articles are found at https://pubmed.ncbi.nlm.nih.gov/29625055/, https://www.nejm.org/doi/full/10.1056/nejmoa1402121, and https://pubmed.ncbi.nlm.nih.gov/29617669/, respectively. 
+`ModelComparison_V2.R` compares eight different possible models for best fit on TCGA data. We conclude the hierarchical spike-and-slab model we propose fits the data best so we apply it to the TCGA data in `GibbsSamplingResults_NewFactorizationDataFilterV3_WithAge_StandardizedPredictors.R`. This script runs the Gibbs sampling algorithm on the TCGA data for the log-normal model. Results are saved for further analysis. This script also creates inclusion heatmap we include in our article. `ScoresVsSubtypes.R` contains code to create all additional figures in the article. To create these figures, we used data from the TCGA-CDR (Liu and others, 2018) found in `TCGA-CDR.csv`, data from an analysis by TCGA Research Network (2015) found in `LGGClinicalDataSubtypes.csv`, and data from the analysis done in Ricketts and others (2018) found in `mmc2.csv`. The links to these three articles are found at https://pubmed.ncbi.nlm.nih.gov/29625055/, https://www.nejm.org/doi/full/10.1056/nejmoa1402121, and https://pubmed.ncbi.nlm.nih.gov/29617669/, respectively. 
 
 ## Model simulations
 
