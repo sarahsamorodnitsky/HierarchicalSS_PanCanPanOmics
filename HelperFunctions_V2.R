@@ -1,10 +1,12 @@
 ### Script with helper functions to import each time they are used elsewhere 
 ### to eliminate the problem of updating a function in one script but not in
 ### another.
-### Authors: Sarah Samorodnitsky and Eric Lock (2020)
-### University of Minnesota
+### Author: Sarah Samorodnitsky
+### Date: 12/9/19
 
-load("XYC_V2_WithAge_StandardizedPredictors.rda") # loads the new factorization data with all PCS and age standardized
+library(Matrix)
+
+load("~/PanTCGA/SpikeAndSlabResults/SpikeAndSlabGibbsSampler/ModelWithInterceptOutsideSS/ResultsAfterFiltering_V3/XYC_V2_WithAge_StandardizedPredictors.rda") # loads the new factorization data with all PCS and age standardized
 
 # Useful variables
 cancer_types = names(Covariates) # should be 29 cancer types
@@ -234,13 +236,14 @@ PlotCredibleIntervalsForBetas = function(betas, filename) {
 }
 
 # For simulations
-GenerateTrueValues = function(p, covariates_by_cancer, covariates_in_model, n_cancer, priors, condition) {
+GenerateTrueValues = function(p, covariates_by_cancer, covariates_in_model, n_cancer, priors, condition, seed) {
   # p (int): the number of covariates in the model
   # n_cancer (int): number of cancers in the model
   # priors (list): contains the hyperparameters for all the prior distributions
   # condition (character): the condition under which to generate the true inclusion indicators
   # condition == (half_present_across_all, 0.1_present_across_all, independent_0.5, independent_0.1, full_all_included, null_none_included)
   # all other parameters generated from their priors
+  # seed is the seed to set so the true values are generated in the same way
   
   # Beta tilde
   betatilde_priorvar = c(priors$betatilde_priorvar_intercept, rep(priors$betatilde_priorvar_coefficient, p-1))
@@ -266,14 +269,14 @@ GenerateTrueValues = function(p, covariates_by_cancer, covariates_in_model, n_ca
       # subset the covariates for cancer i
       ps_i = covariates_by_cancer[[type]]
       avail = covariates_in_model %in% ps_i
-      
+
       # generate indicators using only the pis available for this cancer
       indicators = rbinom(length(covariates_by_cancer[[type]]), size = 1, prob = true_pis[avail])
       indicators[1] = 1
       names(indicators) = covariates_by_cancer[[type]]
-      indicators 
+      indicators
     })
-    
+
     # check to make sure that the same inclusion indicator generated for the same covariate across
     # all cancer types
     # all_same = c()
@@ -372,22 +375,18 @@ GenerateTrueValues = function(p, covariates_by_cancer, covariates_in_model, n_ca
   }
   
   # Betas
-  if (condition == "null_none_included") { # if we are under the null model scenario, generate only betas = 0
-    true_betas = lapply(1:n_cancer, function(type) {
-      ps_i = covariates_by_cancer[[type]]
-      intercept = mvrnorm(1, true_beta_tilde[1], true_lambda2[1])
-      c(intercept, rep(0, length(ps_i)-1)) # return just an intercept, 0s for everything else
-    })
-  } else { # in any other scenario, return betas as usual
-    true_betas = lapply(1:n_cancer, function(type) {
+  true_betas = lapply(1:n_cancer, function(type) {
       true_gammas_i = true_gammas[[type]]
       ps_i = covariates_by_cancer[[type]]
       avail = covariates_in_model %in% ps_i
       var_vec = true_lambda2[avail]
-      var_vec[true_gammas_i == 0] = 1/10000
-      mvrnorm(1, (true_beta_tilde[avail]) * true_gammas_i, diag(var_vec))
+      mvrnorm(1, true_beta_tilde[avail], diag(var_vec)) * true_gammas_i # set to 0 betas that are not included
     })
-  }
+  
+  # Check all the betas that are 0 are the ones that are not included
+  # vec=c()
+  # for(i in 1:n_cancer){vec[i] = all(which(true_betas[[i]]==0) == which(true_gammas[[i]]==0))}
+  # all(vec)
   
   # gathering all the true values together
   true_values = list(true_betas = true_betas, true_gammas = true_gammas, 
@@ -418,14 +417,13 @@ DataBasedOnTrueValues = function(true_betas, true_sigma2, n_vec, covariates_by_c
     beta_coefs = as.matrix(true_betas[[i]]) # extracting just the betas that exist for the ith cancer type
     num_covariates = length(ps_i)
     
-    X = matrix(nrow = n_i, ncol = num_covariates)
+    X = matrix(nrow = n_i, ncol = num_covariates) # initializing an empty design matrix for cancer i
     colnames(X) = ps_i
     
     for (j in 1:length(ps_i)) { # iterate through the covariates
       if (j == 1) { # adding an intercept
         X[,j] = rep(1, n_i)
-      } 
-      else {
+      } else {
         X[,j] = rnorm(n_i, 0, 1)
       }
     }
@@ -443,6 +441,12 @@ DataBasedOnTrueValues = function(true_betas, true_sigma2, n_vec, covariates_by_c
     Y[which_to_censor,] = rep(NA, num_censored) # censor all observations whose survival times exceeded last contact times
     C[which_to_not_censor,] = rep(NA, num_not_censored) # ignore all censored times for observations whose survival times were less than their censor times
     
+    # Checking that for every censored observation there is a censor time and vice versa
+    # correct_censor=c()
+    # for (k in 1:nrow(Y)) {
+    #   correct_censor[k] <- (is.na(Y[k,]) & !is.na(C[k,])) | (!is.na(Y[k,]) & is.na(C[k,]))
+    # }
+    # all(correct_censor)
     
     Design[[i]] = X
     Response[[i]] = Y
@@ -451,11 +455,27 @@ DataBasedOnTrueValues = function(true_betas, true_sigma2, n_vec, covariates_by_c
   return(list(Design = Design, Response = Response, Censored = Censored))
 }
 
-SumOfSquaredDeviations = function(true_gammas, Posteriors, iters) {
+SumOfSquaredDeviations = function(true_gammas, Posteriors, iters, mod) {
   # Computes the sum of squared deviations between the true inclusion indicator
   # and the posterior inclusion probability. Also includes a burn-in so only
   # takes the inclusion indicators after the burn-in. 
   
+  if (mod != "separate_model") {
+    # Saving the number of cancers used in the model
+    n_cancer <- length(Posteriors$gamma) 
+    
+  } else {
+    n_cancer <- length(true_gammas)
+    Posteriors_temp <- lapply(1:1, function(type) list()); names(Posteriors_temp) <- "gamma" # creating a list with just one element "gamma" to store the resulting inclusions for each cancer
+    Posteriors_temp[[1]] <- lapply(1:n_cancer, function(type) {
+      Posteriors[[type]]$gamma[[1]]
+    })
+    
+    # Saving the resulting inclusion indicators for every cancer type back
+    # into the Posteriors variable
+    Posteriors <- Posteriors_temp
+  }
+   
   # Computing the posterior inclusion probability
   thinned_iters = seq(1,(iters/2), by = 10) # for thinning 
   gamma.gibbs = lapply(1:n_cancer, function(type) { # combine the inclusion indicators into a list of matrices for each cancer type so we can take column means
@@ -472,8 +492,24 @@ SumOfSquaredDeviations = function(true_gammas, Posteriors, iters) {
     })
   }
   
+  # For the joint model, duplicate the resulting inclusion indicator vector for
+  # all 29 cancers. Select only the covariates available for that cancer type
+  if (mod == "joint_model") { 
+    posterior_inclusion_joint = lapply(1:length(true_gammas), function(type) {
+      avail = covariates_in_model_full %in% covariates_by_cancer[[type]]
+      posterior_inclusion_type = posterior_inclusion[[1]][avail]
+      names(posterior_inclusion_type) <- names(true_gammas[[type]])
+      posterior_inclusion_type
+    })
+    
+    posterior_inclusion = posterior_inclusion_joint
+    
+    # Checking that the posterior inclusion length matches the true gammas length
+    # all(sapply(1:n_cancer, function(type) length(true_gammas[[type]]) == length(posterior_inclusion[[type]])))
+  }
+  
   # Computing the sum of squared deviations
-  sum_of_squared_devs = sum(unlist(sapply(1:n_cancer, function(type) {
+  sum_of_squared_devs = sum(unlist(sapply(1:length(true_gammas), function(type) {
     (true_gammas[[type]] - posterior_inclusion[[type]])^2
   })))
   
@@ -497,8 +533,8 @@ ComputeSumOfSquaredDeviationsForEveryModel = function(true_gammas, PosteriorsFor
   for (i in 1:n_models) {
     mod = model_types[i]
     
-    PosteriorsForModel_i = PosteriorsForEveryModel[[mod]] 
-    squared_devs[i] = SumOfSquaredDeviations(true_gammas, PosteriorsForModel_i, iters)
+    PosteriorsForModel_i = PosteriorsForEveryModel[[mod]] # for testing: Posteriors = PosteriorsForModel_i
+    squared_devs[i] = SumOfSquaredDeviations(true_gammas, PosteriorsForModel_i, iters, mod)
   }
   
   names(squared_devs) = model_types
@@ -586,17 +622,46 @@ GenerateStartingValues = function(p, covariates_in_model, covariates_by_cancer) 
                               gamma_start = gamma_start_null, # this will get passed on to be the list that stores posterior draws
                               pi_start = pi_start_null)
   
+  # For the joint model
+  gamma_start_joint <- list(list(rep(1, length(covariates_in_model)))) # since there is only "1" cancer type here, we only need one list for the inclusion indicators. We thus have a list of one list. 
+  starting_values_joint <- starting_values
+  starting_values_joint$gamma_start <- gamma_start_joint
+  
+  # For the separate model
+  starting_values_separate <- lapply(1:n_cancer, function(i) list())
+  names(starting_values_separate) <- cancer_types
+  
+  for (type in 1:n_cancer) {
+    # Adjusting these parameters to reflect just a single cancer type
+    covariates_by_cancer_type <- covariates_by_cancer[type]
+    covariates_in_model_type <- unlist(covariates_by_cancer_type)
+    
+    # Selecting just the starting values that correspond to this cancer type
+    avail <- covariates_in_model %in% covariates_by_cancer_type[[1]]
+    starting_values_type <- list(sigma2_start = starting_values$sigma2_start,
+                                 beta_tilde_start = starting_values$beta_tilde_start[avail],
+                                 lambda2_start = starting_values$lambda2_start[avail],
+                                 gamma_start = list(list(starting_values$gamma_start[[type]][[1]])),
+                                 pi_start = starting_values$pi_start[avail])
+    
+    # Storing the starting values in the list
+    starting_values_separate[[type]] <- starting_values_type
+  }
+  
+  
   # Gathering all the starting values together
   starting_values_for_every_model = list(starting_values = starting_values,
                                          starting_values_fixed_at_0.5 = starting_values_fixed_at_0.5,
                                          starting_values_fixed_at_1.0 = starting_values_fixed_at_1.0,
                                          starting_values_shared_across_betas = starting_values_shared_across_betas,
-                                         starting_values_null = starting_values_null)
+                                         starting_values_null = starting_values_null,
+                                         starting_values_joint = starting_values_joint,
+                                         starting_values_separate = starting_values_separate)
   
   return(starting_values_for_every_model)
 }
 
-PosteriorLikelihoodForSimulations = function(posteriors, X, Y, Censored, iters, burnin) {
+PosteriorLikelihoodForSimulations = function(posteriors, X, Y, Censored, iters, burnin, joint = FALSE) {
   # Computes the posterior likelihood where X, Y, and Censored are simulated test data
   # posteriors is the result from the model computation
   # burnin is the number of iterations from the start to throw away
@@ -633,13 +698,21 @@ PosteriorLikelihoodForSimulations = function(posteriors, X, Y, Censored, iters, 
   betas = posteriors$betas
   sigma2 = posteriors$sigma2
   
-  # Converting each entry in Y and Censored to be vectors so that the column names stick in the cbind portion following
-  Y = lapply(Y, function(type) as.vector(type))
-  Censored = lapply(Censored, function(type) as.vector(type))
-  
+  # If this is the joint model, combine the test data together:
+  if (joint) {
+    # Combine the test data into one list for the joint model
+    X <- list(do.call(rbind, CombineCancerDataTogether(X, covariates_in_model_full)))
+    Y <- list(unlist(Y))
+    Censored <- list(unlist(Censored))
+  } else {
+    # Converting each entry in Y and Censored to be vectors so that the column names stick in the cbind portion following
+    Y = lapply(Y, function(type) as.vector(type))
+    Censored = lapply(Censored, function(type) as.vector(type))
+  }
+
   # Obtaining test observations and their times of last contact, etc
   # combine test data into one list
-  List_XY = lapply(seq(length(cancer_types)), function(i) cbind(X[[i]], "Survival" = Y[[i]], "Censored" = Censored[[i]]))
+  List_XY = lapply(seq(length(X)), function(i) cbind(X[[i]], "Survival" = Y[[i]], "Censored" = Censored[[i]]))
   
   posterior.vec = list()
   ind_to_use = seq(burnin, iters, by = 10)
@@ -651,7 +724,7 @@ PosteriorLikelihoodForSimulations = function(posteriors, X, Y, Censored, iters, 
     # apply Likelihood with the corresponding cancer type's posterior parameters
     # at the jth iteration
     #EFL: also changed here 'i' to 'j' on left-hand side below
-    posterior.vec[[j]] = unlist(lapply(seq(length(cancer_types)), 
+    posterior.vec[[j]] = unlist(lapply(seq(length(X)), 
                                        function(k) sapply(seq(nrow(List_XY[[k]])), # for each cancer type
                                                           function(i) { # for each subject in cancer type k
                                                             y_col = which(colnames(List_XY[[k]]) %in% "Survival")  # ncol(List_XY[[k]]) - 1 # the column in List_XY that contains the survival time
@@ -667,9 +740,9 @@ PosteriorLikelihoodForSimulations = function(posteriors, X, Y, Censored, iters, 
     
   }
   
-  #EFL: here is revised code to aggrate the log-likelihoods
+  #EFL: here is revised code to aggregate the log-likelihoods
   #EFL: organize log-likelihoods into M by N matrix, where M is number of test samples and N is number of iterations
-  logLike.mat <- matrix(nrow = sum(n_vec), ncol= length(ind_to_use))
+  logLike.mat <- matrix(nrow = sum(n_vec), ncol = length(ind_to_use))
   for (j in ind_to_use) { # corresponds to every 10th sample 
     k = which(j == ind_to_use) # need to explicitly state the column number because the values of j do not correspond
     logLike.mat[,k] <- unlist(posterior.vec[[j]])
@@ -677,14 +750,98 @@ PosteriorLikelihoodForSimulations = function(posteriors, X, Y, Censored, iters, 
   #EFL: compute joint log-likelihoods, at each iteration, by summing the logs
   logLike.joint <- colSums(logLike.mat)
   #EFL: Compute log of full posterior predictive likelihood, using logSum
-  PL_Survival<- -log(length(posterior.vec))+logSum(logLike.joint)
+  PL_Survival <- -log(length(ind_to_use)) + logSum(logLike.joint) # -log(length(posterior.vec))+logSum(logLike.joint)
   
   return(PL_Survival)
 }
 
+JointLogLikelihoodForSeparateModelForSimulations = function(posteriors, X, Y, Censored, burnin) {
+  # For computing the joint log-likelihood for the separated model
+  # posteriors = posterior samples for a single cancer type
+  # X = Covariates data for a single cancer type
+  # Y = Survival times for a single cancer type
+  # Censored = list of censored times for each cancer type
+  logSum <- function(l) {
+    # given l = log(v), where v is a vector,
+    # computes log(sum(v))
+    return(max(l) + log(sum(exp(l-max(l)))))
+  }
+  
+  LogLikelihood = function(x_ij, y_ij, y_ijc, betas_it, sigma2_it) {
+    # calculate the likelihood for just one set of posteriors
+    mu_ij = sum(x_ij * betas_it) 
+    
+    LogNormalLikelihood = function(y, mu, sig2) {
+      # Calculates log density of normal 
+      # nl = (1/sqrt(2*pi*sig2))*exp(-(1/(2*sig2))*(y - mu)^2)
+      lnl = (-0.5)*log(2*pi*sig2) - (1/(2*sig2))*(y - mu)^2
+      return(lnl)
+    }
+    
+    if (!is.na(y_ij)) { # y_ij is not censored
+      post_ij = LogNormalLikelihood(log(y_ij), mu = mu_ij, sig2 = sigma2_it) # dnorm(log(y_ij), mean = mu_ij1, sd = sqrt(sigma21_it)) # sample from log-normal
+      
+    } else { # if y_ij is censored, use censoring time
+      post_ij = log(1 - pnorm((log(y_ijc) - mu_ij)/sqrt(sigma2_it), mean = 0, sd = 1)) 
+    }
+    
+    return(post_ij)
+  }
+  
+  # Extracting the necessary information
+  n_vec = sapply(X, nrow) # number of patients per cancer type
+  betas = posteriors$betas
+  sigma2 = posteriors$sigma2
+  
+  # Combine the test data together
+  Y <- lapply(Y, as.vector)
+  Censored <- lapply(Censored, as.vector)
+  List_XY = lapply(seq(length(X)), function(i) cbind(X[[i]], "Survival" = Y[[i]], "Censored" = Censored[[i]]))
+  
+  posterior.vec = list()
+  ind_to_use = seq(burnin, iters, by = 10)
+  
+  for (j in ind_to_use) { ##EFL: changed index 'i' to 'j' here
+    
+    # for each cancer type
+    # for each row in that cancer type
+    # apply Likelihood with the corresponding cancer type's posterior parameters
+    # at the jth iteration
+    #EFL: also changed here 'i' to 'j' on left-hand side below
+    posterior.vec[[j]] = unlist(lapply(seq(length(X)), # change from X to X_test
+                                       function(k) sapply(seq(nrow(List_XY[[k]])), # for each cancer type
+                                                          function(i) { # for each test subject in cancer type k
+                                                            y_col = which(colnames(List_XY[[k]]) %in% "Survival")  # ncol(List_XY[[k]]) - 1 # the column in List_XY that contains the survival time
+                                                            yc_col = which(colnames(List_XY[[k]]) %in% "Censored")   # ncol(List_XY[[k]]) # the column in List_XY that contains the censor time
+                                                            
+                                                            LogLikelihood(x_ij = List_XY[[k]][i, -c(y_col, yc_col)], 
+                                                                          y_ij = List_XY[[k]][i, y_col],  # for each patient in the test set
+                                                                          y_ijc = List_XY[[k]][i, yc_col], # ith observation, censor time
+                                                                          betas_it = betas[[k]][[j]],  # kth cancer type, jth iteration posterior
+                                                                          sigma2_it = sigma2[j])
+                                                          }
+                                       )))
+    
+  }
+  
+  #EFL: here is revised code to aggregate the log-likelihoods
+  #EFL: organize log-likelihoods into M by N matrix, where M is number of test samples and N is number of iterations
+  logLike.mat <- matrix(nrow = sum(n_vec), ncol = length(ind_to_use))
+  for (j in ind_to_use) { # corresponds to every 10th sample 
+    k = which(j == ind_to_use) # need to explicitly state the column number because the values of j do not correspond
+    logLike.mat[,k] <- unlist(posterior.vec[[j]])
+  }
+  #EFL: compute joint log-likelihoods, at each iteration, by summing the logs
+  logLike.joint <- colSums(logLike.mat)
+  
+  return(logLike.joint)
+}
+
+
 ComputePosteriorLikelihoodForEveryModel = function(PosteriorsForEveryModel, TestDesign, TestResponse, TestCensored, 
                                                    iters, burnin, model_types) {
   # Computes the posterior likelihood for every model in the simulations
+  n_cancer <- length(TestDesign)
   
   # Number of models to consider
   n_models = length(model_types)
@@ -695,16 +852,52 @@ ComputePosteriorLikelihoodForEveryModel = function(PosteriorsForEveryModel, Test
   for (i in 1:n_models) {
     mod = model_types[i]
     
-    PosteriorsForModel_i = PosteriorsForEveryModel[[mod]]
+    PosteriorsForModel_i = PosteriorsForEveryModel[[mod]] # For testing: posteriors = PosteriorsForModel_i
     
     if (mod == "null_model") { # if we are computing the posterior likelihood for the null model
       TestDesign_Null = lapply(TestDesign, function(type) type[, 1, drop = FALSE])
       
       pls[i] = PosteriorLikelihoodForSimulations(PosteriorsForModel_i, TestDesign_Null, TestResponse, TestCensored,
                                                  iters, burnin = iters/2)
-    } else { # for any other model
+    } else if (mod == "joint_model") {
+      pls[i] = PosteriorLikelihoodForSimulations(PosteriorsForModel_i, TestDesign, TestResponse, TestCensored,
+                                                 iters, burnin = iters/2, joint = TRUE)
+      
+    } else if (mod == "separate_model") {
+      joint_ll_for_each_cancer <- lapply(1:n_cancer, function(type) {
+        JointLogLikelihoodForSeparateModelForSimulations(posteriors = PosteriorsForModel_i[[type]],
+                                           X = TestDesign[type],
+                                           Y = TestResponse[type],
+                                           Censored = TestCensored[type], 
+                                           burnin = iters/2)
+      })
+      iters_used_in_ll <- (iters/2/10) + 1
+      
+      pls[i] <- -log(iters_used_in_ll) + logSum(Reduce('+', joint_ll_for_each_cancer))
+      
+    } else if (mod == "horseshoe_model") {
+      ind_for_betas_by_cancer <- seq(1, p*n_cancer + p, by = p)
+      betas_horseshoe <- lapply(1:n_cancer, function(type) { # for each cancer type
+        betas_type <- PosteriorsForModel_i$BetaSamples[ind_for_betas_by_cancer[type]:(ind_for_betas_by_cancer[(type+1)]-1),]
+        betas_type_list <- as.list(data.frame(betas_type)) # converting each column to a list element
+        
+        # Checking that converting the matrix to a list worked
+        # match <- c(); for (i in 1:(iters/2)) match[i] <- all.equal(betas_type_list[[i]], betas_type[,i]); all(match)
+        
+        names(betas_type_list) <- NULL
+        betas_type_list
+      })
+      pls[i] <- PosteriorLikelihoodForSimulations(posteriors = list(betas = betas_horseshoe, 
+                                                                    sigma2 = PosteriorsForModel_i$Sigma2Samples),
+                                                  X = CombineCancerDataTogether(TestDesign, covariates_in_model), 
+                                                  Y = TestResponse, 
+                                                  Censored = TestCensored, iters = iters/2, burnin = 1)
+      
+    }
+    else { # for any other model
       pls[i] = PosteriorLikelihoodForSimulations(PosteriorsForModel_i, TestDesign, TestResponse, TestCensored,
                                                  iters, burnin = iters/2)
+      
     }
   }
   
@@ -818,11 +1011,116 @@ CredibleIntervalForEveryParamGibbsSampler = function(Posteriors, iters, covariat
   return(CredibleIntervals)
 }
 
-PosteriorLikelihood = function(posteriors, X, Y, Censored, current_train_ind, burnin) {
+PosteriorLikelihood = function(posteriors, X, Y, Censored, current_train_ind, burnin, joint = FALSE) {
   # posteriors is the result from the model computation
   # X and Y are the datasets are Covariates and Survival datasets, respectively
   # Censored is the censor time for each subject
   # burnin is the number of iterations from the start to throw away
+  # joint is a boulean indicator for whether this is for the joint model or not 
+  logSum <- function(l) {
+    # given l = log(v), where v is a vector,
+    # computes log(sum(v))
+    return(max(l) + log(sum(exp(l-max(l)))))
+  }
+  
+  LogLikelihood = function(x_ij, y_ij, y_ijc, betas_it, sigma2_it) {
+    # calculate the likelihood for just one set of posteriors
+    mu_ij = sum(x_ij * betas_it) 
+    
+    LogNormalLikelihood = function(y, mu, sig2) {
+      # Calculates log density of normal 
+      # nl = (1/sqrt(2*pi*sig2))*exp(-(1/(2*sig2))*(y - mu)^2)
+      lnl = (-0.5)*log(2*pi*sig2) - (1/(2*sig2))*(y - mu)^2
+      return(lnl)
+    }
+    
+    if (!is.na(y_ij)) { # y_ij is not censored
+      post_ij = LogNormalLikelihood(log(y_ij), mu = mu_ij, sig2 = sigma2_it) # dnorm(log(y_ij), mean = mu_ij1, sd = sqrt(sigma21_it)) # sample from log-normal
+      
+    } else { # if y_ij is censored, use censoring time
+      post_ij = log(1 - pnorm((log(y_ijc) - mu_ij)/sqrt(sigma2_it), mean = 0, sd = 1)) 
+    }
+    
+    return(post_ij)
+  }
+
+  # Extracting the necessary information
+  n_vec = sapply(X, nrow) # number of patients per cancer type
+  iters = length(posteriors$betas[[1]]) # changed this from nrow(beta_tilde) because not every model has a beta_tilde
+  Training_obs_cv_iter = current_train_ind
+  betas = posteriors$betas
+  sigma2 = posteriors$sigma2
+  Test_obs = lapply(seq(length(X)), function(i) seq(n_vec[i])[!(seq(n_vec[i]) %in% Training_obs_cv_iter[[i]])]) # for each cancer type (seq(length(X)) gives number of cancers since it is a list), obtain the subject indices not contained in the training data set indices
+  
+  # Obtaining test observations and their times of last contact, etc
+  Y_test = lapply(seq(length(X)), function(i) Y[[i]][Test_obs[[i]]]) 
+  X_test = lapply(seq(length(X)), function(i) X[[i]][Test_obs[[i]], ])
+  Censored_test = lapply(seq(length(X)), function(i) Censored[[i]][Test_obs[[i]]])
+  
+  # If this is the joint model, combine the test data together:
+  if (joint) {
+    # Combine the test data into one list for the joint model
+    X_test <- list(do.call(rbind, CombineCancerDataTogether(X_test, covariates_in_model_full)))
+    Y_test <- list(unlist(Y_test))
+    Censored_test <- list(unlist(Censored_test))
+  } 
+  
+  # Combine the test data together
+  List_XY = lapply(seq(length(X_test)), function(i) cbind(X_test[[i]], "Survival" = Y_test[[i]], "Censored" = Censored_test[[i]]))
+  
+  posterior.vec = list()
+  ind_to_use = seq(burnin, iters, by = 10)
+  
+  for (j in ind_to_use) { ##EFL: changed index 'i' to 'j' here
+    
+    # for each cancer type
+    # for each row in that cancer type
+    # apply Likelihood with the corresponding cancer type's posterior parameters
+    # at the jth iteration
+    #EFL: also changed here 'i' to 'j' on left-hand side below
+    posterior.vec[[j]] = unlist(lapply(seq(length(X_test)), # change from X to X_test
+                                       function(k) sapply(seq(nrow(List_XY[[k]])), # for each cancer type
+                                       function(i) { # for each test subject in cancer type k
+                                         y_col = which(colnames(List_XY[[k]]) %in% "Survival")  # ncol(List_XY[[k]]) - 1 # the column in List_XY that contains the survival time
+                                         yc_col = which(colnames(List_XY[[k]]) %in% "Censored")   # ncol(List_XY[[k]]) # the column in List_XY that contains the censor time
+                                         
+                                         LogLikelihood(x_ij = List_XY[[k]][i, -c(y_col, yc_col)], 
+                                                       y_ij = List_XY[[k]][i, y_col],  # for each patient in the test set
+                                                       y_ijc = List_XY[[k]][i, yc_col], # ith observation, censor time
+                                                       betas_it = betas[[k]][[j]],  # kth cancer type, jth iteration posterior
+                                                       sigma2_it = sigma2[j])
+                                         }
+                                       )))
+    
+  }
+  
+  #EFL: here is revised code to aggregate the log-likelihoods
+  #EFL: organize log-likelihoods into M by N matrix, where M is number of test samples and N is number of iterations
+  logLike.mat <- matrix(nrow = length(unlist(Test_obs)), ncol = length(ind_to_use))
+  for (j in ind_to_use) { # corresponds to every 10th sample 
+    k = which(j == ind_to_use) # need to explicitly state the column number because the values of j do not correspond
+    logLike.mat[,k] <- unlist(posterior.vec[[j]])
+  }
+  #EFL: compute joint log-likelihoods, at each iteration, by summing the logs
+  logLike.joint <- colSums(logLike.mat)
+  #EFL: Compute log of full posterior predictive likelihood, using logSum
+  PL_Survival<- -log(length(ind_to_use)) + logSum(logLike.joint) 
+  
+  return(PL_Survival)
+}
+
+logSum <- function(l) {
+  # given l = log(v), where v is a vector,
+  # computes log(sum(v))
+  return(max(l) + log(sum(exp(l-max(l)))))
+}
+
+JointLogLikelihoodForSeparateModel = function(posteriors, X, Y, Censored, current_train_ind, burnin) {
+  # For computing the joint log-likelihood for the separated model
+  # posteriors = posterior samples for a single cancer type
+  # X = Covariates data for a single cancer type
+  # Y = Survival times for a single cancer type
+  # Censored = list of censored times for each cancer type
   logSum <- function(l) {
     # given l = log(v), where v is a vector,
     # computes log(sum(v))
@@ -852,18 +1150,19 @@ PosteriorLikelihood = function(posteriors, X, Y, Censored, current_train_ind, bu
   
   # Extracting the necessary information
   n_vec = sapply(X, nrow) # number of patients per cancer type
-  iters = nrow(posteriors$beta_tilde)
+  iters = length(posteriors$betas[[1]]) # changed this from nrow(beta_tilde) because not every model has a beta_tilde
   Training_obs_cv_iter = current_train_ind
   betas = posteriors$betas
   sigma2 = posteriors$sigma2
-  Test_obs = lapply(seq(length(cancer_types)), function(i) seq(n_vec[i])[!(seq(n_vec[i]) %in% Training_obs_cv_iter[[i]])]) # gathering test observation indices
+  Test_obs = lapply(seq(length(X)), function(i) seq(n_vec[i])[!(seq(n_vec[i]) %in% Training_obs_cv_iter[[i]])]) # for each cancer type (seq(length(X)) gives number of cancers since it is a list), obtain the subject indices not contained in the training data set indices
   
   # Obtaining test observations and their times of last contact, etc
-  Y_test = lapply(seq(length(cancer_types)), function(i) Y[[i]][Test_obs[[i]]]) 
-  X_test = lapply(seq(length(cancer_types)), function(i) X[[i]][Test_obs[[i]], ])
-  Censored_test = lapply(seq(length(cancer_types)), function(i) Censored[[i]][Test_obs[[i]]])
-  # combine test data into one list
-  List_XY = lapply(seq(length(cancer_types)), function(i) cbind(X_test[[i]], "Survival" = Y_test[[i]], "Censored" = Censored_test[[i]]))
+  Y_test = lapply(seq(length(X)), function(i) Y[[i]][Test_obs[[i]]]) 
+  X_test = lapply(seq(length(X)), function(i) X[[i]][Test_obs[[i]], ])
+  Censored_test = lapply(seq(length(X)), function(i) Censored[[i]][Test_obs[[i]]])
+  
+  # Combine the test data together
+  List_XY = lapply(seq(length(X_test)), function(i) cbind(X_test[[i]], "Survival" = Y_test[[i]], "Censored" = Censored_test[[i]]))
   
   posterior.vec = list()
   ind_to_use = seq(burnin, iters, by = 10)
@@ -875,9 +1174,9 @@ PosteriorLikelihood = function(posteriors, X, Y, Censored, current_train_ind, bu
     # apply Likelihood with the corresponding cancer type's posterior parameters
     # at the jth iteration
     #EFL: also changed here 'i' to 'j' on left-hand side below
-    posterior.vec[[j]] = unlist(lapply(seq(length(cancer_types)), 
+    posterior.vec[[j]] = unlist(lapply(seq(length(X_test)), # change from X to X_test
                                        function(k) sapply(seq(nrow(List_XY[[k]])), # for each cancer type
-                                                          function(i) { # for each subject in cancer type k
+                                                          function(i) { # for each test subject in cancer type k
                                                             y_col = which(colnames(List_XY[[k]]) %in% "Survival")  # ncol(List_XY[[k]]) - 1 # the column in List_XY that contains the survival time
                                                             yc_col = which(colnames(List_XY[[k]]) %in% "Censored")   # ncol(List_XY[[k]]) # the column in List_XY that contains the censor time
                                                             
@@ -891,7 +1190,7 @@ PosteriorLikelihood = function(posteriors, X, Y, Censored, current_train_ind, bu
     
   }
   
-  #EFL: here is revised code to aggrate the log-likelihoods
+  #EFL: here is revised code to aggregate the log-likelihoods
   #EFL: organize log-likelihoods into M by N matrix, where M is number of test samples and N is number of iterations
   logLike.mat <- matrix(nrow = length(unlist(Test_obs)), ncol = length(ind_to_use))
   for (j in ind_to_use) { # corresponds to every 10th sample 
@@ -900,8 +1199,73 @@ PosteriorLikelihood = function(posteriors, X, Y, Censored, current_train_ind, bu
   }
   #EFL: compute joint log-likelihoods, at each iteration, by summing the logs
   logLike.joint <- colSums(logLike.mat)
-  #EFL: Compute log of full posterior predictive likelihood, using logSum
-  PL_Survival<- -log(length(posterior.vec))+logSum(logLike.joint)
   
-  return(PL_Survival)
+  return(logLike.joint)
+}
+
+CombineCancerDataTogether = function(Covariates, covariates_in_model) {
+  # Fill in 0s for all missing values. 
+  
+  # Initializing a new Covariates list to store the filled-in data.
+  CovariatesFilledIn <- Covariates
+  names(CovariatesFilledIn) <- cancer_types
+  
+  # Iterating through the cancers and filling in the missing covariates with 0s. 
+  for (cancer in 1:n_cancer) {
+    # Storing the current cancer
+    current_cancer <- CovariatesFilledIn[[cancer]]
+    
+    # Checking which covariates are available for this cancer time
+    current_avail <- covariates_in_model %in% colnames(current_cancer)
+    
+    # Creating a new matrix to store the filled in data in
+    current_cancer_filled_in <- matrix(nrow = nrow(current_cancer), ncol = length(covariates_in_model))
+    colnames(current_cancer_filled_in) <- covariates_in_model
+    rownames(current_cancer_filled_in) <- rownames(current_cancer)
+    
+    # Filling in the 0s
+    current_cancer_filled_in[, !current_avail] <- 0
+    
+    # Filling in the available data
+    current_cancer_filled_in[, current_avail] <- current_cancer
+    
+    # Saving to the new list
+    CovariatesFilledIn[[cancer]] <- current_cancer_filled_in
+  }
+
+  # Return
+  CovariatesFilledIn
+}
+
+PrepareCancerDataForPanCanVarSel <- function(Covariates, covariates_in_model) {
+  # Prepares the covariates in the way that the PanCanVarSel package expects
+  # Initializing a new Covariates list to store the filled-in data.
+  CovariatesFilledIn <- Covariates
+  names(CovariatesFilledIn) <- cancer_types
+  
+  for (cancer in 1:n_cancer) {
+    # Storing the current cancer
+    current_cancer <- CovariatesFilledIn[[cancer]]
+    
+    # Checking which covariates are available for this cancer time
+    current_avail <- covariates_in_model %in% colnames(current_cancer)
+    
+    # Creating a new matrix to store the filled in data in
+    current_cancer_filled_in <- matrix(nrow = nrow(current_cancer), ncol = length(covariates_in_model))
+    colnames(current_cancer_filled_in) <- covariates_in_model
+    rownames(current_cancer_filled_in) <- rownames(current_cancer)
+    
+    # Filling in the 0s
+    current_cancer_filled_in[, !current_avail] <- 0
+    
+    # Filling in the available data
+    current_cancer_filled_in[, current_avail] <- current_cancer
+    
+    # Saving to the new list
+    CovariatesFilledIn[[cancer]] <- current_cancer_filled_in
+  }
+  
+  # Return
+  CovariatesFilledIn.BDiag <- bdiag(CovariatesFilledIn)
+  as.matrix(CovariatesFilledIn.BDiag)
 }
