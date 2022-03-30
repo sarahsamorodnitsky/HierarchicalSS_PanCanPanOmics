@@ -4,9 +4,13 @@ This is the repository for code used for the project titled "A Hierarchical Spik
 
 The following are instructions on how to reproduce our results. 
 
-## Reading in and processing the data
+## Performing the BIDIFAC+ Analysis
 
-First, `load_modules.R` contains code for loading in the BIDIFAC+ modules and computing their SVDs. The scores that we selected based on our filtering criteria will be saved at the end. This script will save a file called `mod.pcs.v3.rda` which contains the selected features from the BIDIFAC+ results. These features are in a variable named `mod.pcs`. Due to the large size of the BIDIFAC+ modules and the scores resulting from our filtering criteria, we don't share them here. Please email us at (samor007@umn.edu \& elock@umn.edu) if you would like access to those files. 
+To reproduce the modules derived from the TCGA data using BIDIFAC+, `TCGA_BIDIFAC_plus.R` loads in the BIDIFAC+ code from `bidifac_plus.R.` At the end of the `TCGA_BIDIFAC_plus.R` script, the modules are saved. These are then loaded in through the `load_modules.R` script in the next step. Due to the large file size of the TCGA data, we do not store these data here. Please email us at (samor007@umn.edu \& elock@umn.edu) if you would like access to those files.
+
+## Reading in and processing the BIDIFAC+ results
+
+`load_modules.R` contains code for loading in the BIDIFAC+ modules and computing their SVDs. The scores that we selected based on our filtering criteria will be saved at the end. This script will save a file called `mod.pcs.v3.rda` which contains the selected features from the BIDIFAC+ results. These features are in a variable named `mod.pcs`. Due to the large size of the BIDIFAC+ modules and the scores resulting from our filtering criteria, we don't share them here. Please email us at (samor007@umn.edu \& elock@umn.edu) if you would like access to those files. 
 
 Then, `MatchingClinicalAndFactorizationData.R` matches the features of the BIDIFAC+ module SVDs to TCGA clinical data. You will have to change all `load()` statements to reflect your directory. In the end, this script will save a file called `XYC_V2_WithAge_StandardizedPredictors.rda` which contains the features, the survival data, and the censored data for all the subjects. This file is provided in this repository. We also provide a file called `XYC_V2_WithAge.rda` which contains the same data as `XYC_V2_WithAge_StandardizedPredictors.rda` only with non-standardized predictors. `XYC_V2_WithAge.rda` is only used for the next step of our analysis, which is to check that the data matches properly. 
 
